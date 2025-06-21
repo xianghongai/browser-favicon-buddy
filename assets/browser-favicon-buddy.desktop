@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Favicon Buddy
+Comment=浏览器书签 favicon 加载工具
+Exec=browser-favicon-buddy
+Icon=browser-favicon-buddy
+Terminal=false
+Categories=Utility;Network;

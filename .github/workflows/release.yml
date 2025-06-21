@@ -1,0 +1,246 @@
+name: Release
+run-name: Release ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+  security-events: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CROSS_NO_WARNINGS: 0
+
+jobs:
+  build:
+    name: Build for ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          # Linux
+          - name: Linux x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            packages: true
+            archive: tar.gz
+            use-cross: false
+          - name: Linux ARM64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            packages: false
+            archive: tar.gz
+            use-cross: true
+
+          # Windows
+          - name: Windows x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            packages: false
+            archive: zip
+            use-cross: false
+          - name: Windows ARM64
+            os: windows-latest
+            target: aarch64-pc-windows-msvc
+            packages: false
+            archive: zip
+            use-cross: false
+
+          # macOS
+          - name: macOS x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            packages: false
+            archive: tar.gz
+            use-cross: false
+          - name: macOS ARM64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            packages: false
+            archive: tar.gz
+            use-cross: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      # 优化的缓存策略
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform.target }}-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: ${{ matrix.platform.target }}
+
+      # 安装 cross 工具（用于交叉编译）
+      - name: Install cross
+        if: matrix.platform.use-cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+          cross --version
+
+      # Linux 依赖安装（仅用于原生构建）
+      - name: Install Linux dependencies
+        if: matrix.platform.os == 'ubuntu-latest' && !matrix.platform.use-cross
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libssl-dev \
+            libgtk-3-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libfontconfig1-dev \
+            build-essential
+
+      # 安装 Linux 包构建工具
+      - name: Install packaging tools
+        if: matrix.platform.packages
+        run: |
+          cargo install cargo-deb
+          cargo install cargo-generate-rpm
+
+      # 构建应用程序
+      - name: Build release binary
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform.use-cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.platform.target }} --features gui
+          else
+            cargo build --release --target ${{ matrix.platform.target }} --features gui
+          fi
+
+      # 构建 .deb 包
+      - name: Build .deb package
+        if: matrix.platform.packages
+        run: |
+          cargo deb --target ${{ matrix.platform.target }} --no-build
+          mkdir -p packages
+          cp target/${{ matrix.platform.target }}/debian/*.deb packages/
+
+      # 构建 .rpm 包
+      - name: Build .rpm package
+        if: matrix.platform.packages
+        run: |
+          # 为 RPM 添加配置
+          cat >> Cargo.toml << 'EOF'
+
+          [package.metadata.generate-rpm]
+          license = "MIT"
+          summary = "浏览器书签 favicon 加载工具"
+          post_install_script = "echo 'browser-favicon-buddy 安装成功'"
+          assets = [
+              { source = "target/x86_64-unknown-linux-gnu/release/browser-favicon-buddy", dest = "/usr/bin/browser-favicon-buddy", mode = "755" },
+              { source = "assets/icon.png", dest = "/usr/share/pixmaps/browser-favicon-buddy.png", mode = "644" },
+              { source = "assets/browser-favicon-buddy.desktop", dest = "/usr/share/applications/browser-favicon-buddy.desktop", mode = "644" },
+              { source = "README.md", dest = "/usr/share/doc/browser-favicon-buddy/README.md", mode = "644" },
+          ]
+
+          [package.metadata.generate-rpm.requires]
+          glibc = "*"
+          gtk3 = "*"
+          EOF
+
+          cargo generate-rpm --target ${{ matrix.platform.target }}
+          cp target/${{ matrix.platform.target }}/generate-rpm/*.rpm packages/
+
+      # 创建归档文件
+      - name: Create release archive
+        shell: bash
+        run: |
+          mkdir -p release
+
+          # 确定可执行文件名
+          if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+            EXECUTABLE="browser-favicon-buddy.exe"
+          else
+            EXECUTABLE="browser-favicon-buddy"
+          fi
+
+          # 创建临时目录
+          TEMP_DIR="browser-favicon-buddy-${{ matrix.platform.target }}"
+          mkdir -p "$TEMP_DIR"
+
+          # 复制文件
+          cp "target/${{ matrix.platform.target }}/release/$EXECUTABLE" "$TEMP_DIR/"
+          cp README.md "$TEMP_DIR/" 2>/dev/null || echo "README.md not found"
+          cp LICENSE "$TEMP_DIR/" 2>/dev/null || echo "LICENSE not found"
+
+          # 复制 assets 目录（如果存在）
+          if [ -d "assets" ]; then
+            cp -r assets "$TEMP_DIR/"
+          fi
+
+          # 创建归档
+          if [[ "${{ matrix.platform.archive }}" == "zip" ]]; then
+            7z a "release/browser-favicon-buddy-${{ matrix.platform.target }}.zip" "$TEMP_DIR"
+          else
+            tar czf "release/browser-favicon-buddy-${{ matrix.platform.target }}.tar.gz" "$TEMP_DIR"
+          fi
+
+      # 上传构建产物
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-favicon-buddy-${{ matrix.platform.target }}
+          path: |
+            release/
+            packages/
+          retention-days: 7
+
+  # 创建 GitHub Release
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: find artifacts -type f -name "*" | head -20
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+
+          # 收集所有文件
+          find artifacts -name "*.tar.gz" -exec cp {} release-files/ \;
+          find artifacts -name "*.zip" -exec cp {} release-files/ \;
+          find artifacts -name "*.deb" -exec cp {} release-files/ \;
+          find artifacts -name "*.rpm" -exec cp {} release-files/ \;
+
+          # 显示将要发布的文件
+          echo "Files to be released:"
+          ls -la release-files/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-files/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
