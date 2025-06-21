@@ -35,6 +35,10 @@ Firefox 导入书签文件：
 - "Bookmarks Toolbar" 会被导入至"Bookmarks Menu"中"，需要全选、剪切至"Bookmarks Toolbar"；
 - "Bookmarks Menu" 中会追加原来的"Bookmarks Menu"中的书签，可能导致"Keyword"丢失。
 
+## 截图
+
+![](./assets/screenshot.png)
+
 ## 许可证
 
 本项目采用 MIT 许可证，详见 [LICENSE](LICENSE)。

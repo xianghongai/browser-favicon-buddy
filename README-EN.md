@@ -28,6 +28,10 @@ Firefox bookmark import:
 - The **Bookmarks Toolbar** will be imported into **Bookmarks Menu**. Select all entries and move them back to **Bookmarks Toolbar** if desired.
 - Items that originally lived in **Bookmarks Menu** will be appended, which may cause stored *Keywords* to be lost.
 
+## Screenshot
+
+![](./assets/screenshot-en.png)
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
