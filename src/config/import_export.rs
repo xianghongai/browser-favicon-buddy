@@ -115,8 +115,27 @@ impl ConfigImportExport for AppConfig {
         // 获取缓存文件路径
         let cache_path = crate::favicon::get_cache_path();
 
+        println!("导出缓存: 源路径 = {}, 目标路径 = {}", cache_path, file_path.display());
+
         // 确保缓存文件存在
         if !Path::new(&cache_path).exists() {
+            println!("警告: 缓存文件不存在: {}", cache_path);
+            // 创建一个空的缓存数据
+            let cache_data = CacheData {
+                favicon_urls: std::collections::HashMap::new(),
+            };
+
+            // 确保目标目录存在
+            if let Some(parent) = file_path.parent() {
+                println!("创建目标目录: {}", parent.display());
+                fs::create_dir_all(parent)?;
+            }
+
+            // 导出空的缓存数据
+            let content = serde_json::to_string_pretty(&cache_data)?;
+            println!("写入文件: {}", file_path.display());
+            fs::write(file_path, content)?;
+
             return Ok(ExportResult {
                 success: true,
                 message: crate::i18n::get_message("cache_export_success", None),
@@ -126,12 +145,22 @@ impl ConfigImportExport for AppConfig {
         // 读取缓存数据
         let favicon_cache = match fs::read_to_string(&cache_path) {
             Ok(data) => {
+                println!("成功读取缓存文件, 大小: {} 字节", data.len());
                 match serde_json::from_str::<crate::favicon::FaviconCache>(&data) {
-                    Ok(cache) => cache.0,
-                    Err(_) => std::collections::HashMap::new(),
+                    Ok(cache) => {
+                        println!("成功解析缓存数据, 包含 {} 项", cache.0.len());
+                        cache.0
+                    },
+                    Err(e) => {
+                        println!("解析缓存数据失败: {}", e);
+                        std::collections::HashMap::new()
+                    },
                 }
             },
-            Err(_) => std::collections::HashMap::new(),
+            Err(e) => {
+                println!("读取缓存文件失败: {}", e);
+                std::collections::HashMap::new()
+            },
         };
 
         // 转换为导出格式
@@ -141,14 +170,20 @@ impl ConfigImportExport for AppConfig {
                 .collect(),
         };
 
+        println!("准备导出 {} 个favicon URL", cache_data.favicon_urls.len());
+
         // 确保目标目录存在
         if let Some(parent) = file_path.parent() {
+            println!("创建目标目录: {}", parent.display());
             fs::create_dir_all(parent)?;
         }
 
         // 导出到文件
         let content = serde_json::to_string_pretty(&cache_data)?;
+        println!("写入文件: {}, 大小: {} 字节", file_path.display(), content.len());
         fs::write(file_path, content)?;
+
+        println!("缓存导出成功");
 
         Ok(ExportResult {
             success: true,
@@ -157,12 +192,25 @@ impl ConfigImportExport for AppConfig {
     }
 
     fn import_cache(&mut self, file_path: &Path) -> AppResult<ExportResult> {
+        println!("导入缓存: 源文件 = {}", file_path.display());
+
         if !file_path.exists() {
+            println!("错误: 文件不存在: {}", file_path.display());
             return Err(crate::errors::AppError::FileNotFound(file_path.display().to_string()));
         }
 
         // 读取导入文件
-        let content = fs::read_to_string(file_path)?;
+        println!("读取文件: {}", file_path.display());
+        let content = match fs::read_to_string(file_path) {
+            Ok(content) => {
+                println!("成功读取文件, 大小: {} 字节", content.len());
+                content
+            },
+            Err(e) => {
+                println!("读取文件失败: {}", e);
+                return Err(crate::errors::AppError::from(e));
+            }
+        };
 
         // 尝试多种解析方式，与 export_cache 的逻辑保持一致
         let favicon_urls = match serde_json::from_str::<CacheData>(&content) {

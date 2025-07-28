@@ -9,5 +9,13 @@ pub struct FaviconCache(pub HashMap<String, Option<String>>);
 
 /// 获取缓存文件路径
 pub fn get_cache_path() -> String {
-    format!("{}/favicon_cache.json", AppConfig::get_app_dir())
+    #[cfg(target_os = "windows")]
+    {
+        format!("{}\\favicon_cache.json", AppConfig::get_app_dir())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        format!("{}/favicon_cache.json", AppConfig::get_app_dir())
+    }
 }

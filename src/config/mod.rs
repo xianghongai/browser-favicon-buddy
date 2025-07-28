@@ -51,7 +51,8 @@ impl AppConfig {
         {
             use std::env;
             let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            let dir = format!(r"{}\.config/favicon-buddy", home);
+            let dir = format!("{}/.config/favicon-buddy", home);  // 使用正斜杠代替反斜杠
+            println!("创建配置目录: {}", dir);
             std::fs::create_dir_all(&dir).ok();
             dir
         }

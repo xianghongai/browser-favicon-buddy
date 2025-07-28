@@ -1,6 +1,6 @@
 [package]
 name = "browser-favicon-buddy"
-version = "1.0.0"
+version = "1.0.2"
 edition = "2021"
 build = "build.rs"
 description = "浏览器书签 favicon 加载工具"
