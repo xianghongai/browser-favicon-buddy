@@ -13,11 +13,48 @@ pub fn load_system_fonts(ctx: &egui::Context) {
     // 尝试加载系统字体
     let font_paths = get_system_font_paths();
 
+    // 存储成功加载的字体，优先使用这些字体
+    let mut loaded_fonts = Vec::new();
+
     // 加载所有可用字体
     for (name, path) in font_paths {
         if let Ok(font_data) = fs::read(&path) {
             fonts.font_data.insert(name.clone(), Arc::new(FontData::from_owned(font_data)));
-            fonts.families.get_mut(&FontFamily::Proportional).unwrap().push(name);
+            loaded_fonts.push(name.clone());
+        }
+    }
+
+    // 确保 Proportional 字体系列存在
+    if !fonts.families.contains_key(&FontFamily::Proportional) {
+        fonts.families.insert(FontFamily::Proportional, Vec::new());
+    }
+
+    // 重新组织字体优先级 - 确保中文字体在前面
+    #[cfg(target_os = "macos")]
+    {
+        // 清空默认的字体家族并按优先级添加加载的字体
+        fonts.families.get_mut(&FontFamily::Proportional).unwrap().clear();
+
+        // 中文字体优先
+        for preferred_font in &["pingfang_sc", "hiragino_sans_gb", "heiti_sc", "stkaiti", "stsong"] {
+            if loaded_fonts.contains(&preferred_font.to_string()) {
+                fonts.families.get_mut(&FontFamily::Proportional).unwrap().push(preferred_font.to_string());
+            }
+        }
+
+        // 添加其他已加载的字体
+        for font in loaded_fonts {
+            if !fonts.families.get(&FontFamily::Proportional).unwrap().contains(&font) {
+                fonts.families.get_mut(&FontFamily::Proportional).unwrap().push(font);
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        // 添加所有已加载的字体
+        for font in loaded_fonts {
+            fonts.families.get_mut(&FontFamily::Proportional).unwrap().push(font);
         }
     }
 
@@ -47,6 +84,9 @@ pub fn load_system_fonts(ctx: &egui::Context) {
                 fonts.families.get_mut(&FontFamily::Proportional).unwrap().push(name.to_string());
             }
         }
+
+        // 打印字体加载情况，便于调试
+        println!("已加载的字体: {:?}", fonts.families.get(&FontFamily::Proportional).unwrap());
     }
 
     #[cfg(target_os = "linux")]
@@ -79,8 +119,25 @@ pub fn get_system_font_paths() -> Vec<(String, String)> {
 
     #[cfg(target_os = "macos")]
     {
+        // macOS 中文字体路径 - 增加更多常用字体以确保正确显示
         paths.push(("pingfang_sc".to_string(), "/System/Library/Fonts/PingFang.ttc".to_string()));
-        paths.push(("stkaiti".to_string(), "/System/Library/Fonts/STKaiti.ttc".to_string()));
+        paths.push(("pingfang_tc".to_string(), "/System/Library/Fonts/PingFang.ttc".to_string()));
+        paths.push(("hiragino_sans_gb".to_string(), "/System/Library/Fonts/Hiragino Sans GB.ttc".to_string()));
+        paths.push(("hiragino_sans".to_string(), "/System/Library/Fonts/HiraginoSans.ttc".to_string()));
+        paths.push(("heiti_sc".to_string(), "/System/Library/Fonts/STHeiti Light.ttc".to_string()));
+        paths.push(("heiti_tc".to_string(), "/System/Library/Fonts/STHeiti Medium.ttc".to_string()));
+        paths.push(("stkaiti".to_string(), "/System/Library/Fonts/Kaiti.ttc".to_string()));
+        paths.push(("stkaiti_old".to_string(), "/System/Library/Fonts/STKaiti.ttc".to_string()));
+        paths.push(("stsong".to_string(), "/System/Library/Fonts/Songti.ttc".to_string()));
+        paths.push(("stfangsong".to_string(), "/System/Library/Fonts/STFangsong.ttf".to_string()));
+
+        // 兼容不同版本 macOS 的路径
+        paths.push(("sf_pro".to_string(), "/System/Library/Fonts/SF-Pro.ttf".to_string()));
+        paths.push(("sf_pro_text".to_string(), "/System/Library/Fonts/SF-Pro-Text-Regular.otf".to_string()));
+
+        // 系统字体目录
+        paths.push(("system_font_1".to_string(), "/Library/Fonts/Arial Unicode.ttf".to_string()));
+        paths.push(("system_font_2".to_string(), "/Library/Fonts/Microsoft Sans Serif.ttf".to_string()));
     }
 
     #[cfg(target_os = "linux")]

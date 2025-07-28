@@ -74,6 +74,7 @@ cache_export_error: "缓存导出失败: %{error}"
 cache_import_error: "缓存导入失败: %{error}"
 save_error: "保存失败: %{error}"
 log_cleared: "日志已清空"
+invalid_cache_format: "无效的缓存文件格式"
 
 # 自定义错误
 service_name_exists: "服务名称 '%{name}' 已存在"

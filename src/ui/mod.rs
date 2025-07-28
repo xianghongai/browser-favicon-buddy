@@ -5,6 +5,7 @@
 mod components;
 mod fonts;
 mod styles;
+mod embedded_fonts;
 
 use eframe::egui;
 use egui::viewport::IconData;
@@ -20,6 +21,18 @@ pub use styles::create_styled_button;
 /// 初始化并运行应用程序
 pub fn run_app() -> eframe::Result<()> {
     let mut options = eframe::NativeOptions::default();
+
+    // 为 macOS 添加特定的渲染选项
+    #[cfg(target_os = "macos")]
+    {
+        // 启用硬件加速和抗锯齿
+        options.hardware_acceleration = eframe::HardwareAcceleration::Preferred;
+        options.multisampling = 4;
+
+        // 设置默认窗口大小略大一些，避免缩放问题
+        options.viewport = options.viewport.with_inner_size([800.0, 600.0]);
+    }
+
     // 加载 PNG 作为窗口 icon；优先尝试运行时文件，若不存在则使用内嵌资源
     let icon_bytes = std::fs::read("assets/icon.png").ok().unwrap_or_else(|| EMBED_ICON_PNG.to_vec());
     if let Ok(img) = image::load_from_memory(&icon_bytes) {

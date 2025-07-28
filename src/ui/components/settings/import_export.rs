@@ -108,17 +108,43 @@ pub fn render(app: &mut AppState, ui: &mut egui::Ui) {
                     .add_filter("JSON", &["json"])
                     .set_file_name("favicon_cache.json")
                     .pick_file() {
-                    match app.config.import_cache(path.as_path()) {
-                        Ok(result) => {
-                            let mut log_lock = app.log.lock().unwrap();
-                            log_lock.push_str(&format!("\n{}\n", result.message));
-                        }
+
+                    // 首先验证文件格式
+                    let validation_result = crate::config::import_export::CacheData::validate_file(path.as_path());
+
+                    // 如果验证通过，尝试导入
+                    match validation_result {
+                        Ok(_) => {
+                            match app.config.import_cache(path.as_path()) {
+                                Ok(result) => {
+                                    let mut log_lock = app.log.lock().unwrap();
+                                    let success_msg = format!("{}", result.message);
+                                    ui.add(egui::Label::new(egui::RichText::new(&success_msg).color(egui::Color32::GREEN)));
+                                    log_lock.push_str("\n");
+                                    log_lock.push_str(&success_msg);
+                                    log_lock.push_str("\n");
+                                }
+                                Err(e) => {
+                                    let mut log_lock = app.log.lock().unwrap();
+                                    let mut args = std::collections::HashMap::new();
+                                    args.insert("error".to_string(), e.to_string());
+                                    let error_msg = crate::i18n::get_message("cache_import_error", Some(args));
+                                    ui.add(egui::Label::new(egui::RichText::new(&error_msg).color(egui::Color32::RED)));
+                                    log_lock.push_str("\n");
+                                    log_lock.push_str(&error_msg);
+                                    log_lock.push_str("\n");
+                                }
+                            }
+                        },
                         Err(e) => {
                             let mut log_lock = app.log.lock().unwrap();
                             let mut args = std::collections::HashMap::new();
                             args.insert("error".to_string(), e.to_string());
                             let error_msg = crate::i18n::get_message("cache_import_error", Some(args));
-                            log_lock.push_str(&format!("\n{}\n", error_msg));
+                            ui.add(egui::Label::new(egui::RichText::new(&error_msg).color(egui::Color32::RED)));
+                            log_lock.push_str("\n");
+                            log_lock.push_str(&error_msg);
+                            log_lock.push_str("\n");
                         }
                     }
                 }

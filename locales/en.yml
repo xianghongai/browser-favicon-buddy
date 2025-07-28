@@ -74,6 +74,7 @@ cache_export_error: "Cache export error: %{error}"
 cache_import_error: "Cache import error: %{error}"
 save_error: "Save error: %{error}"
 log_cleared: "Log cleared"
+invalid_cache_format: "Invalid cache file format"
 
 # Custom errors
 service_name_exists: "Service name '%{name}' already exists"

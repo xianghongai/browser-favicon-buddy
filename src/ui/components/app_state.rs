@@ -56,7 +56,18 @@ impl App for AppState {
         // 加载系统字体
         static INIT: std::sync::Once = std::sync::Once::new();
         INIT.call_once(|| {
+            println!("正在加载系统字体...");
             load_system_fonts(ctx);
+            println!("字体加载完成");
+
+            // 在 macOS 上输出更多调试信息
+            #[cfg(target_os = "macos")]
+            {
+                println!("macOS 系统字体加载调试信息:");
+                println!("当前语言环境: {}", std::env::var("LANG").unwrap_or_else(|_| "未设置".to_string()));
+                println!("当前应用语言: {}", crate::i18n::get_locale());
+                println!("系统检测到的语言: {}", crate::i18n::detect_system_locale());
+            }
         });
 
         // 设置对话框
